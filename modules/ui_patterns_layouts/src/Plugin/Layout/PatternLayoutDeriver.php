@@ -5,29 +5,28 @@ namespace Drupal\ui_patterns_layouts\Plugin\Layout;
 use Drupal\Component\Plugin\Derivative\DeriverBase;
 use Drupal\Core\Plugin\Discovery\ContainerDeriverInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\ui_patterns\UiPatternsManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Class PatternLayoutDeriver.
- *
- * @package Drupal\ui_patterns_layouts\Plugin\Layout
  */
 class PatternLayoutDeriver extends DeriverBase implements ContainerDeriverInterface {
 
   /**
    * Patterns manager.
    *
-   * @var \Drupal\ui_patterns\UiPatternsManagerInterface
+   * @var \Drupal\ui_patterns\UiPatternsManager
    */
   protected $manager;
 
   /**
-   * {@inheritdoc}
+   * PatternLayoutDeriver constructor.
+   *
+   * @param \Drupal\ui_patterns\UiPatternsManager $manager
    */
-  public function __construct() {
-    // @todo: use DI after following issue gets in.
-    // @link https://www.drupal.org/node/2868949
-    $this->manager = \Drupal::service('plugin.manager.ui_patterns');
+  public function __construct(UiPatternsManager $manager) {
+    $this->manager = $manager;
   }
 
   /**
@@ -49,25 +48,34 @@ class PatternLayoutDeriver extends DeriverBase implements ContainerDeriverInterf
    *   An array of full derivative definitions keyed on derivative id.
    */
   public function getDerivativeDefinitions($base_plugin_definition) {
+    /** @var \Drupal\ui_patterns\Definition\PatternDefinition $pattern_definition */
     foreach ($this->manager->getDefinitions() as $pattern_definition) {
       $definition = clone $base_plugin_definition;
 
       // @codingStandardsIgnoreStart
-      $definition->setLabel(new TranslatableMarkup($pattern_definition['label']));
-      $definition->setThemeHook($pattern_definition['theme hook']);
-      $definition->set('pattern', $pattern_definition['id']);
-      $definition->set('provider', $pattern_definition['provider']);
+      $definition->set('id', $pattern_definition->id());
+      $definition->setLabel(new TranslatableMarkup($pattern_definition->getLabel()));
+
+      // Have to set category as plain string to work around optgroup bug in
+      // Display Suite's layout selection form.
+      // @todo Remove this when Display Suite bug is fixed.
+      $definition->setCategory((string)$definition->getCategory());
+
+      $definition->setThemeHook($pattern_definition->getThemeHook());
+      $definition->set('pattern', $pattern_definition->id());
+      $definition->set('provider', $pattern_definition->getProvider());
       $regions = [];
-      foreach ($pattern_definition['fields'] as $field) {
-        $regions[$field['name']]['label'] = $field['label'];
+      /** @var \Drupal\ui_patterns\Definition\PatternDefinitionField $field */
+      foreach ($pattern_definition->getFields() as $field) {
+        $regions[$field->getName()]['label'] = $field->getLabel();
       }
       $definition->setRegions($regions);
 
-      if (isset($pattern_definition['description'])) {
-        $definition->setDescription(new TranslatableMarkup($pattern_definition['description']));
+      if ($pattern_definition->getDescription()) {
+        $definition->setDescription(new TranslatableMarkup($pattern_definition->getDescription()));
       }
 
-      $this->derivatives[$pattern_definition['id']] = $definition;
+      $this->derivatives[$pattern_definition->id()] = $definition;
       // @codingStandardsIgnoreEnd
     }
 
